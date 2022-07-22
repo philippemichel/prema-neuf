@@ -1,0 +1,89 @@
+---
+title: "PREMA-NEUF"
+subtitle: "Plan d'analyse"
+thanks: "Dr Suzanne BORRHOMEE - Syrine BEN GUEBILA (service de réanimation et médecine néonatale)"
+author: "Philippe MICHEL"
+date: 21/07/2022
+format: pdf
+pdf-engine: lualatex
+documentclass: scrartcl
+mainfont: Adobe Garamond Pro
+mainfontoptions:
+- Ligatures = Common
+- Ligatures = Rare
+sansfont: Trajan Pro
+monofont: Source Sans Pro
+mathfont: Source Sans Pro
+monofontoptions: Numbers = Monospaced
+mathfontoptions: Numbers = Monospaced
+colorlinks: true
+fontsize: 10pt
+papersize: a4
+lang: fr
+fig-align: center
+toc: false
+lof: false
+lot: false
+cite-method: biblatex
+bibliography: stat.bib
+license: MIT
+always_allow_html: true
+keep-tex: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, cache = FALSE) 
+```
+
+Ce document ne concerne que l'analyse statistique des données.
+
+Il s'agit d'une étude purement observationnelle. Le risque $\alpha$ retenu est de 0,05 & la puissance de 0,8. Des graphiques seront réalisés pour tous les résultats intéressants.
+
+## Description de la population
+
+La description de la population sera présentée sur deux tableaux : 
+-   un premier pour toutes les données concernant la grossesse, l'accouchement & la première hospitalisation;
+-   Un second pour le suivi.
+
+Une description de la population par analyse de correspondance multiple sera réalisée pour tenter le définir des groupes de patients. Cette analyse ne pourra être réalisée qu'après imputation des données manquantes si celle ci est possible (données manquantes rares). Les données numériques seront présentées par leur médiane avec les quartiles, les données catégorielles par le nombre,& le pourcentage avec son intervalle de confiance calculé par bootstrap.
+
+
+## Objectif principal
+
+L'objectif principal est le taux de nouveau-nés perdus de vue dans cette population. Il sera présenté par un nombre & un pourcentage avec son intervalle de confiance à 95 % calculé par bootstrap. 
+
+Un lien entre les données initiales & le nombre de perdu de vue sera réalisé par des tests du $\chi^2$ pour les variables discrètes & des tests de Wilcoxon pour les données numériques. Une analyse multivariée par régression linéaire sera ensuite réalisée en incorporant dans un premier temps incorporant les toutes les variables ayant une p-value \< 0,20 sur l'analyse monovariée. Une recherche du meilleur modèle sera ensuite réalisé par un step-by-step descendant. Pour la détermination du meilleur modèle de régression logistique par step-by-step sur le critère principal, on utilisera un jeu de données après imputation des données manquantes. Par contre, une fois le modèle retenu, les calculs présentés seront réalisés sur les données réelles.
+
+## Objectifs secondaires
+
+### Taux de compliance des mères sans domicile fixe aux prescriptions médicales à 12 mois
+
+Ce taux sera présenté par le nombre & le pourcentage avec son intervalle de confiance à 95 % calculé par bootstrap. 
+
+### Nombre d’enfants ayant une vaccination complète chez les nourrissons nés à un terme inférieur ou égal à 33 SA, de mère sans domicile fixe, à 12 mois
+
+Ce taux sera présenté par le nombre & le pourcentage avec son intervalle de confiance à 95 % calculé par bootstrap. 
+
+### Type de suivi en ville organisé des nourrissons, évalué à 6 mois
+
+Ce taux sera présenté par le nombre & le pourcentage avec son intervalle de confiance à 95 % calculé par bootstrap. 
+
+### Nombre de ré-hospitalisations et consultations aux urgences, évalué à 12 mois
+
+Ce taux sera présenté par le nombre & le pourcentage avec son intervalle de confiance à 95 % calculé par bootstrap. 
+
+### Durée de l’allaitement maternel en semaines, évalué à 6 mois
+
+La durée allaitement sera présentée par sa médiane avec les quartiles.
+
+### Type d’alimentation
+
+un nombre & un pourcentage avec son intervalle de confiance à 95 % calculé par bootstrap. 
+
+### Courbe de croissance staturo-pondérale
+les courbes de croissance (poids & Z-score) seront tracées (diagramme *en fagot*)
+
+
+## technique
+
+L'analyse statistique sera réalisée grâce au logiciel **R** [@rstat] & à divers packages en particulier `tidyverse`[@tidy], `FactoMineR`[@facto] & `epiDisplay`[@epid].
