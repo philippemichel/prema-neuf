@@ -1,0 +1,350 @@
+---
+subtitle: "Analyse statistique - V 1.0"
+cache: false
+---
+
+::: {.panel-tabset}
+
+# Introduction
+
+**Suivi des nouveaux nés prématurés issus de mères sans domicile fixe**
+
+  **Investigateur coordonnateur** : Mme Syrine BEN GUEBILA
+
+**Responsable scientifique** : Dr Suzanne BORRHOMEE -- Service de réanimation et médecine néonatale) NOVO (Site Pontosie)
+
+**Chef de projet** : Mme Mathilde WLODARCZYK
+
+```{r}
+#| label: info
+
+rm(list=ls())
+library(baseph)
+library(tidyverse)
+library(kableExtra)
+library(scales)
+library(forestmodel)
+library(gtsummary)
+library(colorspace)
+library(epiDisplay)
+library(labelled)
+library(ggstats)
+library(plotly)
+library(DataExplorer)
+library(xlsx)
+
+expx <- FALSE
+classeur <- "mpsatetp2.xlsx"
+if (expx){system(paste0("rm -f ",classeur))}
+#
+theme_gtsummary_language(language = "fr", decimal.mark = ",")
+options(OutDec = ",")
+#
+load(file = "datas/premaneuf.RData")
+# sessionInfo()
+```
+
+```{r}
+#| label: funct-tab
+
+formt <- function(tabx, oui = TRUE, comp = "") {
+  if (oui) {
+    cpt = 'Pour les données en oui/non seul le résultat pour oui a été présenté'
+  }
+  else{
+    cpt = ''
+  }
+#  cpt = paste0(cpt, ". ", comp)
+  tabx |>
+ modify_footnote(update = everything() ~ cpt) |>
+    add_n() |>
+    add_overall() |> 
+    bold_labels()
+}
+```
+
+```{r}
+#| label: funct_pcang
+#| 
+pcang <- function(df, varx, nc = 2){
+ aa <-  df |>
+    drop_na({{varx}}) |>
+    group_by({{varx}}) |>
+    summarise(n = n())
+tot <- sum(aa$n)
+nn <- aa$n[[nc]]
+  ppdv <- round(100*nn/tot,1)
+  zz <- transangph(nn, tot)
+  zz <- paste0(nn , " cas sur ", tot," soit ", ppdv," % [", round(zz$binf, 1), " - ", round(zz$bsup, 1), "] de l'échantillon")
+  return(zz)
+}
+```
+
+
+Les variables à réponses ouvertes & les variables monotones ont été supprimées. 
+
+La base de donnée comprend donc `r nrow(tt)` observations et `r ncol(tt) - 1` variables. 
+
+# Description de la population
+
+```{r}
+#| label: tbl-demog
+#| tbl-cap: Description de la population
+
+tt |> 
+ dplyr::select(2:5) |> 
+  tbl_summary( missing = "no")  |>
+    add_n() |>
+    bold_labels()|> 
+  pexptabph(exp = expx, nomfich = classeur, nomsheet = "demog") |> 
+  scroll_box(width = "100%", height = "700px")
+```
+
+```{r}
+#| label: tbl-hospi
+#| tbl-cap: Hospitalisation
+
+tt |> 
+ dplyr::select(13:21) |> 
+  tbl_summary( missing = "no")  |>
+    add_n() |>
+    bold_labels()|> 
+  pexptabph(exp = expx, nomfich = classeur, nomsheet = "demog") |> 
+  scroll_box(width = "100%", height = "700px")
+```
+
+# Critère principal
+
+*Le nombre d’enfants perdus de vue à 12 mois ayant manqué leur(s) dernier(s)
+RDV(s) de suivi organisé dans le cadre de la prématurité, sans motif fourni ni
+nouvelle programmation prévue*
+
+
+
+```{r}
+#| label: tbl-pdv
+#| tbl-cap: Enfants perdus de vue
+
+tt |> 
+ dplyr::select(perdu_de_vue) |> 
+  tbl_summary( missing = "no")  |>
+    add_n() |>
+    bold_labels()|> 
+  pexptabph(exp = expx, nomfich = classeur, nomsheet = "demog")
+
+zz <- pcang(tt,perdu_de_vue)
+
+```
+::: {.callout-important}
+Les perdus de vue correspondent à `r zz`. 
+:::
+
+
+```{r}
+#| label: tbl-suivi
+#| tbl-cap: Suivi des enfants
+
+tt |>
+dplyr::select(26:29, 65, 51, 56,63, 65:75) |>
+tbl_summary(
+missing = "no",
+value = list(
+rdv_rate = "oui",
+nouveau_ne_revu_hdj = "oui",
+kine_prescrite = "oui", 
+psychomot_prescrite = "oui", 
+suivi_psychologique_des_mamans = "suivi"
+)
+) |>
+add_n() |>
+bold_labels() |>
+pexptabph(exp = expx,
+nomfich = classeur,
+nomsheet = "demog") |>
+scroll_box(width = "100%", height = "700px")
+```
+
+```{r}
+#| label: tbl-vie
+#| tbl-cap: Mode de vie
+
+tt |>
+dplyr::select(52:54,64) |>
+tbl_summary(
+missing = "no",
+value = list(
+rdv_rate = "oui",
+nouveau_ne_revu_hdj = "oui",
+kine_prescrite = "oui", 
+psychomot_prescrite = "oui"
+)
+) |>
+add_n() |>
+bold_labels() |>
+pexptabph(exp = expx,
+nomfich = classeur,
+nomsheet = "demog") |>
+scroll_box(width = "100%", height = "700px")
+```
+
+
+
+# Critères secondaires
+
+## Critère 1
+*Le taux de compliance des mères sans domicile fixe aux prescriptions
+médicales (traitements, kinésithérapie, prise de rendez-vous ...) à 12 mois.*
+
+Les variables `suivi autre fait` sont quasiment vides & donc non exploitables. 
+
+```{r}
+#| label: tbl-c1
+#| tbl-cap: Compliance des mères au suivi
+
+tt |> 
+ dplyr::select(26,28,67,69) |> 
+  tbl_summary( missing = "no",
+  value = list(
+rdv_rate = "oui")) |>
+    add_n() |>
+    bold_labels()|> 
+  pexptabph(exp = expx, nomfich = classeur, nomsheet = "demog") 
+```
+
+## Critère 2
+*Nombre d’enfants ayant une vaccination complète chez les nourrissons
+nés à un terme inférieur ou égal à 33 SA, de mère sans domicile fixe, à 12
+mois.*
+
+```{r}
+#| label: c2
+
+zz <- pcang(tt,vaccination, 1)
+```
+
+Les enfants à jour pour leur vaccination représentent `r zz`.
+
+
+## Critère 3
+*Type de suivi en ville organisé des nourrissons nés à un terme inférieur ou
+égal à 33 SA, de mère sans domicile fixe (entre la PMI et les médecins
+traitants, espacement des rendez-vous), évalué à 6 mois.*
+
+```{r}
+#| label: tbl-c3
+#| tbl-cap: Type de suivi en ville
+
+tt |> 
+ dplyr::select(63,65,66,68) |> 
+  tbl_summary(missing = "no",
+  value = list(
+  nouveau_ne_revu_hdj = "oui",
+  kine_prescrite = "oui",
+  psychomot_prescrite = "oui"
+  )) |>
+    add_n() |>
+    bold_labels()|> 
+  pexptabph(exp = expx, nomfich = classeur, nomsheet = "c3_suivi") 
+```
+
+
+## Critère 4
+*Nombre de ré-hospitalisations et consultations aux urgences du CH René-
+Dubos chez les nourrissons nés à un terme inférieur ou égal à 33 SA, de
+mère sans domicile fixe, évalué à 12 mois.*
+
+```{r}
+#| label: tbl-c4
+#| tbl-cap: Réhospitalisations et urgences
+
+tt |> 
+ dplyr::select(56,29) |> 
+  tbl_summary(missing = "no",
+  value = list(
+  nouveau_ne_revu_hdj = "oui",
+  kine_prescrite = "oui",
+  psychomot_prescrite = "oui"
+  )) |>
+    add_n() |>
+    bold_labels()|> 
+  pexptabph(exp = expx, nomfich = classeur, nomsheet = "c4_hospi") 
+```
+
+
+
+## Critère 5
+*Durée de l’allaitement maternel en semaines, évalué à 6 mois, chez les
+nourrissons nés à un terme inférieur ou égal à 33 SA, de mère sans
+domicile fixe.*
+
+```{r}
+#| label: tbl-c5
+#| tbl-cap: Allaitement maternel
+
+tt |> 
+ dplyr::select(22:24) |> 
+  tbl_summary(missing = "no") |>
+    add_n() |>
+    bold_labels()|> 
+  pexptabph(exp = expx, nomfich = classeur, nomsheet = "c5_lait") 
+```
+
+## Critère 6
+*Courbe de croissance staturo-pondérale (poids et Z score) chez les
+nourrissons nés à un terme inférieur ou égal à 33 SA, de mère sans
+domicile fixe.*
+
+# Technique 
+
+Il s'agit d'une étude purement observationnelle. Le risque $\alpha$ retenu est de 0,05 & la puissance de 0,8. Des graphiques seront réalisés pour tous les résultats intéressants.
+
+## Description de la population
+
+La description de la population sera présentée sur deux tableaux : 
+-   un premier pour toutes les données concernant la grossesse, l'accouchement & la première hospitalisation;
+-   Un second pour le suivi.
+
+Une description de la population par analyse de correspondance multiple sera réalisée pour tenter le définir des groupes de patients. Cette analyse ne pourra être réalisée qu'après imputation des données manquantes si celle ci est possible (données manquantes rares). Les données numériques seront présentées par leur médiane avec les quartiles, les données catégorielles par le nombre,& le pourcentage avec son intervalle de confiance calculé par bootstrap.
+
+
+## Objectif principal
+
+L'objectif principal est le taux de nouveau-nés perdus de vue dans cette population. Il sera présenté par un nombre & un pourcentage avec son intervalle de confiance à 95 % calculé par bootstrap. 
+
+Un lien entre les données initiales & le nombre de perdu de vue sera réalisé par des tests du $\chi^2$ pour les variables discrètes & des tests de Wilcoxon pour les données numériques. Une analyse multivariée par régression linéaire sera ensuite réalisée en incorporant dans un premier temps incorporant les toutes les variables ayant une p-value \< 0,20 sur l'analyse monovariée. Une recherche du meilleur modèle sera ensuite réalisé par un step-by-step descendant. Pour la détermination du meilleur modèle de régression logistique par step-by-step sur le critère principal, on utilisera un jeu de données après imputation des données manquantes. Par contre, une fois le modèle retenu, les calculs présentés seront réalisés sur les données réelles.
+
+## Objectifs secondaires
+
+### Taux de compliance des mères sans domicile fixe aux prescriptions médicales à 12 mois
+
+Ce taux sera présenté par le nombre & le pourcentage avec son intervalle de confiance à 95 % calculé par bootstrap. 
+
+### Nombre d’enfants ayant une vaccination complète chez les nourrissons nés à un terme inférieur ou égal à 33 SA, de mère sans domicile fixe, à 12 mois
+
+Ce taux sera présenté par le nombre & le pourcentage avec son intervalle de confiance à 95 % calculé par bootstrap. 
+
+### Type de suivi en ville organisé des nourrissons, évalué à 6 mois
+
+Ce taux sera présenté par le nombre & le pourcentage avec son intervalle de confiance à 95 % calculé par bootstrap. 
+
+### Nombre de ré-hospitalisations et consultations aux urgences, évalué à 12 mois
+
+Ce taux sera présenté par le nombre & le pourcentage avec son intervalle de confiance à 95 % calculé par bootstrap. 
+
+### Durée de l’allaitement maternel en semaines, évalué à 6 mois
+
+La durée allaitement sera présentée par sa médiane avec les quartiles.
+
+### Type d’alimentation
+
+un nombre & un pourcentage avec son intervalle de confiance à 95 % calculé par bootstrap. 
+
+### Courbe de croissance staturo-pondérale
+les courbes de croissance (poids & Z-score) seront tracées (diagramme *en fagot*)
+
+
+
+
+
+:::
+
