@@ -1,19 +1,58 @@
 ---
-subtitle: "Analyse statistique - V 1.0"
+title: "PREMA-NEUF"
+subtitle: "Rapport Statistique - V 2.0"
+author: "D\\textsuperscript{r} Philippe \\textsc{Michel} -- USCR, Hôpital NOVO"
+lang: fr
+format:
+ titlepage-pdf:
+  titlepage: bg-image
+  titlepage-bg-image: "novo_usrc.png"
+  logo-space-after: "0\\baselineskip"
+  documentclass: scrreprt
+  number-sections: true
+  titlepage-footer:  "D\\textsuperscript{r} Syrine  \\textsc{Ben Guebila}  \\newline D\\textsuperscript{r} Suzanne \\textsc{Borrhomée} -- service de réanimation et médecine néonatale, Hôpital \\textsc{novo} (Site Pontoise)\\newline \\newline Chef de projet : M\\textsuperscript{me} Mathilde \\textsc{Wlodarczyk}\\newline \\newline Observer le devenir et la qualité du suivi médical des enfants nés grands
+prématurés ($\\leq$ 33 SA) de mères sans domicile fixe. \\newline \\newline \\today"
+titlepage-theme:
+  title-fontstyle: ["Huge", "bfseries"]
+  title-color: novo
+  subtitle-color: novo
+  subtitle-fontstyle: ["huge"]
+  logo-size: "0.2\\textheight"
+  vrule-width: "0.1cm"
+  vrule-color: novo
+include-in-header:
+   text: |
+    \definecolor{novo}{HTML}{27484b}
+    \usepackage[locale = FR, per-mode = symbol]{siunitx}
+    \usepackage[section]{placeins}
+    \usepackage{arsenal}
+df-print : kable
+jss-pdf:
+  keep-tex: true
+pdf-engine: lualatex
+keep-tex: true
+number-sections: true
+toc: true
+lof: true
+lot: true
+fig-cap-location: bottom
+tbl-cap-location: top
+classoption: [french]
+papersize: a4
+editor: source
+#bibliography: stat.bib
+#cite-method: biblatex
+#csl: jama.csl
+#reference-location: margin
+#citation-location: margin
+license: "MIT"
+fig-width: 10
+echo: false
+warning: false
+message: false
 cache: false
 ---
 
-::: {.panel-tabset}
-
-# Introduction
-
-**Suivi des nouveaux nés prématurés issus de mères sans domicile fixe**
-
-  **Investigateur coordonnateur** : Mme Syrine BEN GUEBILA
-
-**Responsable scientifique** : Dr Suzanne BORRHOMEE -- Service de réanimation et médecine néonatale) NOVO (Site Pontosie)
-
-**Chef de projet** : Mme Mathilde WLODARCZYK
 
 ```{r}
 #| label: info
@@ -33,14 +72,16 @@ library(plotly)
 library(DataExplorer)
 library(xlsx)
 
-expx <- FALSE
-classeur <- "mpsatetp2.xlsx"
+expx <- TRUE
+classeur <- "premaneuf2.xlsx"
 if (expx){system(paste0("rm -f ",classeur))}
 #
 theme_gtsummary_language(language = "fr", decimal.mark = ",")
 options(OutDec = ",")
 #
 load(file = "datas/premaneuf.RData")
+#
+mci <- list(all_categorical() ~ "wilson.no.correct", all_continuous() ~ "wilcox.test")
 # sessionInfo()
 ```
 
@@ -64,9 +105,25 @@ formt <- function(tabx, oui = TRUE, comp = "") {
 ```
 
 ```{r}
+#| label: macro_tabp
+
+tabp <- function(dfx, nn = 2, nom = "Période") {
+  nom <- paste0("**", nom, "**")
+  if (nn > 2) {cc <- "aov"} else {cc <- "wilcox.test"}
+  nn <- paste0("stat_",1:nn)
+  dfx |>
+    modify_header(label ~ " ") |>
+    modify_spanning_header(nn ~ nom) |>
+    add_p(test = list(all_continuous() ~ cc, all_categorical() ~ "chisq.test")) |>
+    add_overall() |>
+    bold_labels()
+}
+```
+
+```{r}
 #| label: funct_pcang
 #| 
-pcang <- function(df, varx, nc = 2){
+pcang <- function(df, varx, nc = 2){ 
  aa <-  df |>
     drop_na({{varx}}) |>
     group_by({{varx}}) |>
@@ -81,43 +138,205 @@ nn <- aa$n[[nc]]
 ```
 
 
+```{r}
+#| label: funct_icp
+
+icp <- function(p,n){
+  pp <- p/n
+  et <- 1.96 * sqrt(((1-pp)*pp)/n)
+  et1 <- (pp-et)*100
+  et2 <- (pp+et)*100
+  ppc <- pp*100
+  icp <- paste0(round(ppc,0),"% [",round(et1,0),"% ; ",round(et2,0),"%]")
+  return(list(pct = ppc, et1 = et1, et2 = et2, icp = icp))
+}
+```
+
+
+# Description de la population
+
 Les variables à réponses ouvertes & les variables monotones ont été supprimées. 
 
 La base de donnée comprend donc `r nrow(tt)` observations et `r ncol(tt) - 1` variables. 
-
-# Description de la population
 
 ```{r}
 #| label: tbl-demog
 #| tbl-cap: Description de la population
 
-tt |> 
- dplyr::select(2:5) |> 
-  tbl_summary( missing = "no")  |>
-    add_n() |>
-    bold_labels()|> 
-  pexptabph(exp = expx, nomfich = classeur, nomsheet = "demog") |> 
-  scroll_box(width = "100%", height = "700px")
+
+tt |>
+  dplyr::select(2:4) |>
+  tbl_summary(missing = "no")  |>
+  add_n() |>
+  modify_header(label ~ " ") |>
+  bold_labels() |>
+  add_ci(method = mci) |> 
+  pexptabph(exp = expx,
+            nomfich = classeur,
+            nomsheet = "demog", lg = TRUE)
 ```
+
+\clearpage
+
+```{r}
+#| label: tbl-madm
+#| tbl-cap: Motif d'admission
+
+zz <- tt |> 
+  dplyr::select(starts_with("motif_a")) |> 
+  pivot_longer(everything()) |> 
+  mutate(value = fct_recode(value, 
+             "PNT" = "PNP"
+           )) |> 
+  dplyr::select(value) |> 
+  drop_na(value) |>
+  mutate(value = fct_infreq(value))
+
+zz |>
+  tbl_summary(missing = "no", 
+              label = list(value ~ "Motif d'admission"))  |>
+  modify_header(label ~ " ") |>
+  add_ci(method = mci) |>
+  bold_labels() |>
+  pexptabph(exp = expx,
+            nomfich = classeur,
+            nomsheet = "mot_adm")
+
+
+```
+
+```{r}
+#| label: fig-madm
+#| fig-cap: Motif d'admission 
+#| fig-asp: 0.8
+
+  ndfx <- zz |> 
+  mutate(value = fct_lump(value,10)) |>
+    count(value)
+  names(ndfx) <-  c("nom","n")
+  cg <- 'darkslategrey'
+  ndfx |> 
+    drop_na(nom) |> 
+    ggplot() +
+    aes(x = fct_reorder(nom, n), y = n) +
+    geom_segment(
+      aes(
+        x = fct_reorder(nom, n),
+        xend = fct_reorder(nom, n),
+        y = 0,
+        yend = n
+      ),
+      linewidth = 1.5,
+      color = cg
+    ) +
+    geom_point(
+      size = 5,
+      shape = 21,
+      color = "darkgreen", 
+      fill = "darkgreen"
+    ) +
+    coord_flip() +
+    labs(
+      title = "Motifs d'admission",
+      subtitle = "10 plus fréquents",
+      x = "",
+      y = "n"
+    ) +
+    theme_light() +
+    colorspace::scale_fill_discrete_qualitative(palette = "Dark 3", nmax = 2, order = c(2,1)) +
+    theme(
+      plot.title = element_text(size = 14, face = "bold"),
+      plot.subtitle = element_text(size = 12),
+      axis.title.x = element_text(size = 12),
+      legend.title = element_text(size = 12),
+      axis.title.y = element_text(
+        size = 12,
+        angle = 0,
+        vjust = .5
+      ),
+      axis.text.x = element_text(size = 12),
+      axis.text.y = element_text(size = 12),
+      legend.position = "none"
+    )
+```
+
 
 ```{r}
 #| label: tbl-hospi
 #| tbl-cap: Hospitalisation
 
-tt |> 
- dplyr::select(13:21) |> 
-  tbl_summary( missing = "no")  |>
-    add_n() |>
-    bold_labels()|> 
-  pexptabph(exp = expx, nomfich = classeur, nomsheet = "demog") |> 
+tt |>
+  dplyr::select(13:21) |>
+  tbl_summary(missing = "no")  |>
+  add_n() |>
+  modify_header(label ~ " ") |>
+  bold_labels() |>
+    add_ci(method = mci) |>
+  pexptabph(exp = expx,
+            nomfich = classeur,
+            nomsheet = "hospi1") |>
   scroll_box(width = "100%", height = "700px")
 ```
 
+## Motifs de recours aux urgences
+
+```{r}
+#| label: tbl-recoursurg
+#| tbl-cap: Motifs de recours aux urgences
+#| 
+zz <- tt |>
+ dplyr::select(starts_with("motif_u")) |> 
+  pivot_longer(everything(), values_to = "Motif") |> 
+  dplyr::select(Motif) |>
+  drop_na(Motif) 
+  zz$Motif <- fct_infreq(zz$Motif)
+  zz |>
+  tbl_summary(missing = "no") |> 
+      add_n() |>
+  modify_header(label ~ " ") |>
+  bold_labels() |>
+  add_ci(method = mci) |>
+  pexptabph(exp = expx,
+            nomfich = classeur,
+            nomsheet = "recours_urg")
+```
+
+## Motifs d'hospitalisation
+
+```{r}
+#| label: tbl-motif_hosp
+#| tbl-cap: Motifs d'hospitalisation
+#| 
+zz <- tt |>
+ dplyr::select(starts_with("motif_h")) |> 
+  pivot_longer(everything(), values_to = "Motif") |> 
+  dplyr::select(Motif) |>
+  drop_na(Motif) 
+  zz$Motif <- fct_infreq(zz$Motif)
+  zz |>
+  tbl_summary(missing = "no") |> 
+      add_n() |>
+  modify_header(label ~ " ") |>
+  bold_labels() |>
+  add_ci(method = mci) |>
+  pexptabph(exp = expx,
+            nomfich = classeur,
+            nomsheet = "motif_hosp")
+```
+
+
 # Critère principal
 
-*Le nombre d’enfants perdus de vue à 12 mois ayant manqué leur(s) dernier(s)
-RDV(s) de suivi organisé dans le cadre de la prématurité, sans motif fourni ni
-nouvelle programmation prévue*
+**Pour tous les calculs suivants les patients décédés pendant l'hospitalisation ont été exclus.**
+
+*Le nombre d’enfants perdus de vue à 12 mois ayant manqué leur(s) dernier(s) RDV(s) de suivi organisé dans le cadre de la prématurité, sans motif fourni ni nouvelle programmation prévue*
+
+```{r}
+#| label: dcd
+
+tt <- tt |> 
+  dplyr::filter(dcd == "non")
+```
 
 
 
@@ -125,44 +344,109 @@ nouvelle programmation prévue*
 #| label: tbl-pdv
 #| tbl-cap: Enfants perdus de vue
 
-tt |> 
- dplyr::select(perdu_de_vue) |> 
-  tbl_summary( missing = "no")  |>
-    add_n() |>
-    bold_labels()|> 
-  pexptabph(exp = expx, nomfich = classeur, nomsheet = "demog")
 
-zz <- pcang(tt,perdu_de_vue)
+
+tt |>
+  dplyr::select(perdu_de_vue) |>
+  tbl_summary(missing = "no")  |>
+  add_n() |>
+  modify_header(label ~ " ") |>
+  bold_labels() |>
+  add_ci(method = mci) |>
+  pexptabph(exp = expx,
+            nomfich = classeur,
+            nomsheet = "pdv")
+
+zz <- pcang(tt, perdu_de_vue)
 
 ```
+
 ::: {.callout-important}
 Les perdus de vue correspondent à `r zz`. 
 :::
 
+\clearpage
 
 ```{r}
 #| label: tbl-suivi
 #| tbl-cap: Suivi des enfants
 
 tt |>
-dplyr::select(26:29, 65, 51, 56,63, 65:75) |>
-tbl_summary(
-missing = "no",
-value = list(
-rdv_rate = "oui",
-nouveau_ne_revu_hdj = "oui",
-kine_prescrite = "oui", 
-psychomot_prescrite = "oui", 
-suivi_psychologique_des_mamans = "suivi"
-)
-) |>
-add_n() |>
-bold_labels() |>
-pexptabph(exp = expx,
-nomfich = classeur,
-nomsheet = "demog") |>
-scroll_box(width = "100%", height = "700px")
+  dplyr::select(26:29, 65, 51, 56, 63, 65:69) |>
+  tbl_summary(
+    missing = "no",
+    value = list(
+      rdv_rate = "oui",
+      nouveau_ne_revu_hdj = "oui",
+      kine_prescrite = "oui",
+      psychomot_prescrite = "oui",
+      suivi_psychologique_des_mamans = "suivi"
+    )
+  ) |>
+  add_n() |>
+  add_ci(method = mci) |>
+  modify_header(label ~ " ") |>
+  bold_labels() |>
+  pexptabph(
+    exp = expx,
+    nomfich = classeur,
+    nomsheet = "suivi1",
+    lg = TRUE
+  ) 
 ```
+
+\clearpage
+
+```{r}
+#| label: tbl-suivi2
+#| tbl-cap: Suivis divers
+
+tt |>
+  dplyr::select(starts_with("suivi_autre_")) |>
+  pivot_longer(everything(), values_to = "Suivi") |>
+  mutate(
+    Suivi = fct_recode(
+      Suivi,
+      "Autre" = "autre",
+      "Endocrinologie pédiatrique" = "endocrinoped",
+      "Cardiologie pédiatrique" = "cardioped",
+      "Chirurgie pédiatrique" = "chirg ped",
+      "Ophtalmologie" = "ophtalmo",
+      "Orthopédie" = "orthopédie",
+      "Psychomotricité" = "PCO (psychomot)",
+      "Neurologie pédiatrique" = "neuroped"
+    )
+  ) |>
+  mutate(Suivi = fct_infreq(Suivi)) |>
+  mutate(Suivi = fct_lump_n(Suivi, 6, other_level = "Autre")) |>
+  dplyr::select(Suivi) |>
+  tbl_summary(missing = "no")  |>
+  add_ci(method = mci) |>
+  bold_labels() |>
+  modify_header(label ~ " ") |>
+  pexptabph(exp = expx,
+            nomfich = classeur,
+            nomsheet = "suivi2")
+```
+
+```{r}
+#| label: tbl-suivi3
+#| tbl-cap: Suivi fait
+#| 
+tt |>
+  dplyr::select(starts_with("suivi_fait_")) |>
+  pivot_longer(everything(), values_to = "Suivi") |>
+  dplyr::select(Suivi) |>
+  mutate(Suivi = fct_infreq(Suivi)) |>
+  tbl_summary(missing = "no")  |>
+  bold_labels() |>
+  add_ci(method = mci) |>
+  modify_header(label ~ " ") |>
+  pexptabph(exp = expx,
+            nomfich = classeur,
+            nomsheet = "suivi3")
+```
+
 
 ```{r}
 #| label: tbl-vie
@@ -170,6 +454,8 @@ scroll_box(width = "100%", height = "700px")
 
 tt |>
 dplyr::select(52:54,64) |>
+  mutate(problemes_respiratoires = fct_infreq(problemes_respiratoires)) |>
+  mutate(type_hebergement = fct_infreq(type_hebergement)) |>
 tbl_summary(
 missing = "no",
 value = list(
@@ -181,10 +467,11 @@ psychomot_prescrite = "oui"
 ) |>
 add_n() |>
 bold_labels() |>
+  add_ci(method = mci) |>
+  modify_header(label ~ " ") |>
 pexptabph(exp = expx,
 nomfich = classeur,
-nomsheet = "demog") |>
-scroll_box(width = "100%", height = "700px")
+nomsheet = "mdv") 
 ```
 
 
@@ -195,7 +482,7 @@ scroll_box(width = "100%", height = "700px")
 *Le taux de compliance des mères sans domicile fixe aux prescriptions
 médicales (traitements, kinésithérapie, prise de rendez-vous ...) à 12 mois.*
 
-Les variables `suivi autre fait` sont quasiment vides & donc non exploitables. 
+Les variables `suivi autre fait` sont quasiment vides & donc non exploitables (voir @tbl-suivi3). 
 
 ```{r}
 #| label: tbl-c1
@@ -207,9 +494,12 @@ tt |>
   value = list(
 rdv_rate = "oui")) |>
     add_n() |>
-    bold_labels()|> 
-  pexptabph(exp = expx, nomfich = classeur, nomsheet = "demog") 
+    add_ci(method = mci) |>
+  bold_labels()|> 
+  pexptabph(exp = expx, nomfich = classeur, nomsheet = "c1_compliance", lg = TRUE) 
 ```
+
+\newpage
 
 ## Critère 2
 *Nombre d’enfants ayant une vaccination complète chez les nourrissons
@@ -217,12 +507,19 @@ nés à un terme inférieur ou égal à 33 SA, de mère sans domicile fixe, à 1
 mois.*
 
 ```{r}
-#| label: c2
+#| label: tbl-c2
+#| tbl-cap: Vaccination
 
-zz <- pcang(tt,vaccination, 1)
+tt |> 
+ dplyr::select(vaccination) |> 
+  tbl_summary( missing = "no")  |>
+   modify_header(label ~ " ") |> 
+    bold_labels()|>
+  add_ci(method = mci) |>
+  pexptabph(exp = expx, nomfich = classeur, nomsheet = "c2_vaccin") 
 ```
 
-Les enfants à jour pour leur vaccination représentent `r zz`.
+
 
 
 ## Critère 3
@@ -236,6 +533,7 @@ traitants, espacement des rendez-vous), évalué à 6 mois.*
 
 tt |> 
  dplyr::select(63,65,66,68) |> 
+    mutate(medecin_traitant = fct_infreq(medecin_traitant)) |>
   tbl_summary(missing = "no",
   value = list(
   nouveau_ne_revu_hdj = "oui",
@@ -243,10 +541,13 @@ tt |>
   psychomot_prescrite = "oui"
   )) |>
     add_n() |>
+  add_ci(method = mci) |>
+     modify_header(label ~ " ") |> 
     bold_labels()|> 
-  pexptabph(exp = expx, nomfich = classeur, nomsheet = "c3_suivi") 
+  pexptabph(exp = expx, nomfich = classeur, nomsheet = "c3_suivi", lg = TRUE) 
 ```
 
+\newpage
 
 ## Critère 4
 *Nombre de ré-hospitalisations et consultations aux urgences du CH René-
@@ -265,12 +566,14 @@ tt |>
   kine_prescrite = "oui",
   psychomot_prescrite = "oui"
   )) |>
+  add_ci(method = mci) |>
+     modify_header(label ~ " ") |> 
     add_n() |>
     bold_labels()|> 
-  pexptabph(exp = expx, nomfich = classeur, nomsheet = "c4_hospi") 
+  pexptabph(exp = expx, nomfich = classeur, nomsheet = "c4_hospi", lg = TRUE) 
 ```
 
-
+\newpage
 
 ## Critère 5
 *Durée de l’allaitement maternel en semaines, évalué à 6 mois, chez les
@@ -283,10 +586,13 @@ domicile fixe.*
 
 tt |> 
  dplyr::select(22:24) |> 
+    mutate(type_lait_sortie = fct_infreq(type_lait_sortie)) |>
+   mutate(type_allaitement = fct_infreq(type_allaitement)) |>
   tbl_summary(missing = "no") |>
+       modify_header(label ~ " ") |> 
     add_n() |>
     bold_labels()|> 
-  pexptabph(exp = expx, nomfich = classeur, nomsheet = "c5_lait") 
+  pexptabph(exp = expx, nomfich = classeur, nomsheet = "c5_lait", lg = TRUE) 
 ```
 
 ## Critère 6
@@ -294,57 +600,99 @@ tt |>
 nourrissons nés à un terme inférieur ou égal à 33 SA, de mère sans
 domicile fixe.*
 
-# Technique 
+```{r}
+#| label: prepa_c6
+age <- c(tt$age_sortie/30.5 , tt$age_consult_1,tt$age_consult_2,tt$age_consult_3,tt$age_consult_4)
+taille <- c(tt$taille_sortie_cm, tt$taille_consult_1_cm,tt$taille_consult_2_cm,tt$taille_consult_3_cm,tt$taille_consult_4_cm)
+poids <- c(tt$poids_sortie_g, tt$poids_consult_1_g,tt$poids_consult_2_g,tt$poids_consult_3_g,tt$poids_consult_4_g)
+zz <- tibble(age, taille, poids) |> 
+  drop_na() |>
+  dplyr::filter(age <30) 
+```
+
+```{r}
+#| label: fig-c6_poids
+#| fig-cap: Courbe de croissance - Poids
+#| fig-asp: 0.7
+
+zz |> 
+  ggplot() +
+  aes(x = age, y = poids) +
+  geom_jitter(width = 0.5, height = .5) +
+  geom_smooth(method = "loess") +
+  labs(title = "Poids",
+       x = "mois",
+       y = "g") +
+  theme_light() +
+  scale_y_continuous(breaks = seq(0,15000,2500)) +
+  scale_x_continuous(breaks = seq(0,24,3)) +
+  colorspace::scale_fill_discrete_qualitative(palette = "Dark 3") +
+  theme(
+    plot.title = element_text(size = 16, face = "bold"),
+    plot.subtitle = element_text(size = 12),
+    axis.title.x = element_text(size = 12),
+    axis.title.y = element_text(size = 12),
+    legend.title = element_text(size = 12),
+    legend.position = "none") 
+```
+
+
+
+```{r}
+#| label: fig-c6_taille
+#| fig-cap: Courbe de croissance - Taille
+#| fig-asp: 0.7
+
+zz |> 
+  ggplot() +
+  aes(x = age, y = taille) +
+  geom_jitter(width = 0.5, height = .5) +
+  geom_smooth(method = "loess") +
+  labs(title = "Taille",
+       x = "mois",
+       y = "cm") +
+  theme_light() +
+ # scale_y_continuous(breaks = seq(0,15000,2500)) +
+  scale_x_continuous(breaks = seq(0,24,3)) +
+  colorspace::scale_fill_discrete_qualitative(palette = "Dark 3") +
+  theme(
+    plot.title = element_text(size = 16, face = "bold"),
+    plot.subtitle = element_text(size = 12),
+    axis.title.x = element_text(size = 12),
+    axis.title.y = element_text(size = 12),
+    legend.title = element_text(size = 12),
+    legend.position = "none") 
+```
+
+Les courbes sont des moyennes mobiles tracées avec leur intervalle de de confiance à 95 %.
+
+# Technique  
 
 Il s'agit d'une étude purement observationnelle. Le risque $\alpha$ retenu est de 0,05 & la puissance de 0,8. Des graphiques seront réalisés pour tous les résultats intéressants.
 
 ## Description de la population
 
-La description de la population sera présentée sur deux tableaux : 
--   un premier pour toutes les données concernant la grossesse, l'accouchement & la première hospitalisation;
--   Un second pour le suivi.
+La description de la population sera présentée sur plusieurs tableaux :
 
-Une description de la population par analyse de correspondance multiple sera réalisée pour tenter le définir des groupes de patients. Cette analyse ne pourra être réalisée qu'après imputation des données manquantes si celle ci est possible (données manquantes rares). Les données numériques seront présentées par leur médiane avec les quartiles, les données catégorielles par le nombre,& le pourcentage avec son intervalle de confiance calculé par bootstrap.
+- données concernant la grossesse, l'accouchement & la première hospitalisation;
+- Motifs d'admission;
+- le suivi.
 
 
 ## Objectif principal
 
-L'objectif principal est le taux de nouveau-nés perdus de vue dans cette population. Il sera présenté par un nombre & un pourcentage avec son intervalle de confiance à 95 % calculé par bootstrap. 
+L'objectif principal est le taux de nouveau-nés perdus de vue dans cette population. Il sera présenté par un nombre & un pourcentage avec son intervalle de confiance à 95 % calculé par la méthode de Wilson sans correction de continuité. 
 
-Un lien entre les données initiales & le nombre de perdu de vue sera réalisé par des tests du $\chi^2$ pour les variables discrètes & des tests de Wilcoxon pour les données numériques. Une analyse multivariée par régression linéaire sera ensuite réalisée en incorporant dans un premier temps incorporant les toutes les variables ayant une p-value \< 0,20 sur l'analyse monovariée. Une recherche du meilleur modèle sera ensuite réalisé par un step-by-step descendant. Pour la détermination du meilleur modèle de régression logistique par step-by-step sur le critère principal, on utilisera un jeu de données après imputation des données manquantes. Par contre, une fois le modèle retenu, les calculs présentés seront réalisés sur les données réelles.
 
 ## Objectifs secondaires
 
-### Taux de compliance des mères sans domicile fixe aux prescriptions médicales à 12 mois
+***Critères 1 à 5 & 7*** Les taux sont présentés par le nombre & le pourcentage avec son intervalle de confiance à 95 % calculé par la méthode de Wilson sans correction de continuité. 
 
-Ce taux sera présenté par le nombre & le pourcentage avec son intervalle de confiance à 95 % calculé par bootstrap. 
-
-### Nombre d’enfants ayant une vaccination complète chez les nourrissons nés à un terme inférieur ou égal à 33 SA, de mère sans domicile fixe, à 12 mois
-
-Ce taux sera présenté par le nombre & le pourcentage avec son intervalle de confiance à 95 % calculé par bootstrap. 
-
-### Type de suivi en ville organisé des nourrissons, évalué à 6 mois
-
-Ce taux sera présenté par le nombre & le pourcentage avec son intervalle de confiance à 95 % calculé par bootstrap. 
-
-### Nombre de ré-hospitalisations et consultations aux urgences, évalué à 12 mois
-
-Ce taux sera présenté par le nombre & le pourcentage avec son intervalle de confiance à 95 % calculé par bootstrap. 
-
-### Durée de l’allaitement maternel en semaines, évalué à 6 mois
-
-La durée allaitement sera présentée par sa médiane avec les quartiles.
-
-### Type d’alimentation
-
-un nombre & un pourcentage avec son intervalle de confiance à 95 % calculé par bootstrap. 
-
-### Courbe de croissance staturo-pondérale
-les courbes de croissance (poids & Z-score) seront tracées (diagramme *en fagot*)
+**Durée de l’allaitement maternel en semaines, évalué à 6 mois** La durée allaitement estprésentée par sa médiane avec les quartiles.
 
 
+**Courbe de croissance staturo-pondérale** Les courbes de croissance (poids & taille) ont été tracées avec la moyenne mobile & son interbvalle de confiance à 95 %.
 
 
-
-:::
+L'analyse statistique a été réalisée avec le logiciel **R** [@rstat] & diverses librairies en particulier celles du `tidyverse` [@tidy] & `baseph` [@baseph].
 
